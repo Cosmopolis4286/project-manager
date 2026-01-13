@@ -1,0 +1,52 @@
+# Logs y archivos temporales
+*.log
+*.cache
+*.bak
+*.swp
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos de entorno y configuración sensible
+.env
+.env.backup
+.env.production
+.auth.json
+
+# Configuración y metadatos de IDEs y editores
+/.idea/
+/.nova/
+/.vscode/
+/.zed/
+/.phpactor.json
+
+# Cache y archivos temporales de PHPUnit
+.phpunit.result.cache
+.phpunit.cache
+
+# pnpm store y lockfiles
+.pnpm-store/
+pnpm-lock.yaml
+
+# Dependencias y builds
+/node_modules/
+/vendor/
+/public/build/
+/public/hot/
+/public/storage/
+
+# Cache y storage específicos de Laravel (conservar .gitignore para carpetas vacías)
+src/storage/*
+!src/storage/.gitignore
+
+src/storage/*.key
+src/storage/pail/
+
+src/bootstrap/cache/*
+!src/bootstrap/cache/.gitignore
+
+# Otros archivos y carpetas específicas
+/.fleet/
+Homestead.json
+Homestead.yaml

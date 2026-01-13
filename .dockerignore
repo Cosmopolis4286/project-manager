@@ -1,0 +1,22 @@
+# Ignorar dependencias ya instaladas
+vendor/
+node_modules/
+
+# Ignorar archivos de sistema y editor
+.git
+.gitignore
+.env
+.env.* 
+.idea/
+.vscode/
+.DS_Store
+
+# Ignorar logs y caches locales
+storage/*.log
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+
+# Ignorar builds locales de frontend
+public/build/
+public/hot
