@@ -2,35 +2,69 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Models\Project;
+use App\Models\Task;
+use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
+use Inertia\Response;
 
+/**
+ * Controller responsável pelo Dashboard do usuário.
+ */
 class DashboardController extends Controller
 {
-    public function index()
+    /**
+     * Exibe o dashboard principal.
+     *
+     * Carrega métricas globais e lista resumida de projetos
+     * com indicadores de saúde e progresso.
+     *
+     * @return Response
+     */
+    public function index(): Response
     {
-        $user = auth()->user();
+        $userId = Auth::id();
 
-        // Evitar error si el usuario no está autenticado (por seguridad)
-        if (!$user) {
-            abort(403, 'Usuário não autenticado.');
-        }
+        /**
+         * Projetos recentes com:
+         * - total de tarefas
+         * - tarefas concluídas
+         * - cálculo de progresso (%)
+         *
+         * ⚠️ Eager loading otimizado (1 query)
+         */
+        $projects = Project::query()
+            ->where('user_id', $userId)
+            ->withCount([
+                'tasks',
+                'tasks as completed_tasks_count' => function ($query) {
+                    $query->where('status', 'done');
+                },
+            ])
+            ->orderBy('position')
+            ->limit(10)
+            ->get()
+            ->map(function (Project $project) {
+                $progress = $project->tasks_count > 0
+                    ? round(($project->completed_tasks_count / $project->tasks_count) * 100)
+                    : 0;
 
-        // Obtener estadísticas reales con validación de relaciones existentes
-        $stats = [
-            'active_projects' => method_exists($user, 'projects') ? $user->projects()->active()->count() : 0,
-            'pending_tasks' => method_exists($user, 'tasks') ? $user->tasks()->pending()->count() : 0,
-            'recent_alerts' => method_exists($user, 'alerts') ? $user->alerts()->recent()->count() : 0,
-        ];
+                return [
+                    'id'        => $project->id,
+                    'name'      => $project->name,
+                    'health'    => $project->health_status,
+                    'progress'  => $progress,
+                ];
+            });
 
-        $notifications = [
-            'Projeto "Site Nova Marca" atualizado.',
-            'Tarefa "Revisar contrato" está atrasada.',
-            'Nova mensagem de João.',
-        ];
-
-        return inertia('Dashboard', [
-            'stats' => $stats,
-            'notifications' => $notifications,
+        return Inertia::render('Dashboard', [
+            'stats' => [
+                'active_projects' => Project::where('user_id', $userId)->count(),
+                'pending_tasks'   => Task::where('user_id', $userId)->where('status', 'pending')->count(),
+                'recent_alerts'   => $projects->where('health', 'Em Alerta')->count(),
+            ],
+            'projects' => $projects,
+            'notifications' => [],
         ]);
     }
 }

@@ -36,7 +36,8 @@ const stats = page.props.stats ?? {
 const notifications = page.props.notifications ?? [];
 
 /**
- * Projetos com saúde.
+ * Projetos com indicador de saúde.
+ * Sempre existe (array vazio ou com dados).
  */
 const projects = page.props.projects ?? [];
 
@@ -115,11 +116,7 @@ const quickActions = [
 
             <!-- Projetos -->
             <section class="bg-white p-6 rounded-lg shadow">
-                <ProjectHealthList
-                    :projects="projects"
-                    :limit="5"
-                    :loading="!projects.length"
-                />
+                <ProjectHealthList :projects="projects" :limit="5" />
             </section>
 
             <!-- Notificações -->

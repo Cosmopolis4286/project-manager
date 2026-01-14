@@ -4,6 +4,7 @@
  *
  * Funcionalidades:
  * - Skeleton loader
+ * - Empty state amigável
  * - Tooltip para projetos em alerta
  * - Barra de progresso (% tarefas concluídas)
  * - Navegação clicável
@@ -120,7 +121,26 @@ const goToProject = (id) => {
         </li>
     </ul>
 
-    <p v-else class="text-sm text-gray-500 text-center py-6">
-        Nenhum projeto encontrado.
-    </p>
+    <!-- Empty State -->
+    <div
+        v-else
+        class="flex flex-col items-center justify-center text-center py-12 gap-2"
+    >
+        <span class="text-3xl">📁</span>
+
+        <p class="text-sm font-medium text-gray-600">
+            Nenhum projeto disponível
+        </p>
+
+        <p class="text-xs text-gray-400 max-w-xs">
+            Quando você criar projetos, o status e o progresso aparecerão aqui.
+        </p>
+
+        <button
+            @click="router.visit(route('projects.index'))"
+            class="mt-2 text-xs font-medium text-indigo-600 hover:underline"
+        >
+            Criar ou visualizar projetos
+        </button>
+    </div>
 </template>
