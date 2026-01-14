@@ -1,69 +1,84 @@
 <script setup>
 /**
- * Dashboard principal del usuario autenticado.
+ * Dashboard principal do usuário autenticado.
  *
  * Responsabilidades:
- * - Mostrar métricas (projects, tasks, alerts)
- * - Mostrar notificaciones recientes
- * - Proveer acciones rápidas de navegación
- *
+ * - Exibir métricas principais
+ * - Mostrar notificações recentes
+ * - Listar projetos com indicador de saúde
+ * - Prover ações rápidas de navegação
  */
 
-import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import { Head, usePage, router } from "@inertiajs/vue3";
+import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
+import StatsCard from "@/Components/Dashboard/StatsCard.vue";
+import QuickActions from "@/Components/Dashboard/QuickActions.vue";
+import ProjectHealthList from "@/Components/Projects/ProjectHealthList.vue";
+import NotificationsPanel from "@/Components/Dashboard/NotificationsPanel.vue";
 
 /**
- * Props recibidas desde Inertia (DashboardController@index)
- *
- * Estructura esperada:
- * {
- *   stats: {
- *     active_projects: number,
- *     pending_tasks: number,
- *     recent_alerts: number
- *   },
- *   notifications: string[]
- * }
- *
- * Se definen valores por defecto para evitar errores
- * durante renders intermedios de Inertia.
+ * Props recebidas via Inertia.
  */
 const page = usePage();
 
+/**
+ * Métricas principais.
+ */
 const stats = page.props.stats ?? {
     active_projects: 0,
     pending_tasks: 0,
     recent_alerts: 0,
 };
 
+/**
+ * Notificações recentes.
+ */
 const notifications = page.props.notifications ?? [];
 
 /**
- * Navega a la creación de un nuevo proyecto
- * Usa ruta nombrada para soportar subdirectorios y APP_URL dinámico
+ * Projetos com saúde.
  */
-const createNewProject = () => {
-    router.visit(route("projects.create"));
-};
+const projects = page.props.projects ?? [];
 
 /**
- * Navega a la lista de tareas filtradas por estado "pending"
- * (asegura compatibilidad futura con query params)
+ * Navega para criação de um novo projeto.
  */
-const viewPendingTasks = () => {
+const createNewProject = () => router.visit(route("projects.create"));
+
+/**
+ * Navega para tarefas pendentes.
+ */
+const viewPendingTasks = () =>
     router.visit(route("tasks.index", { status: "pending" }));
-};
 
 /**
- * Navega a la vista de alertas recientes
+ * Navega para alertas recentes.
  */
-const viewAlerts = () => {
-    router.visit(route("alerts.recent"));
-};
+const viewAlerts = () => router.visit(route("alerts.recent"));
+
+/**
+ * Ações rápidas do dashboard.
+ */
+const quickActions = [
+    {
+        label: "Criar novo projeto",
+        color: "bg-blue-600 hover:bg-blue-700",
+        onClick: createNewProject,
+    },
+    {
+        label: "Ver tarefas pendentes",
+        color: "bg-green-600 hover:bg-green-700",
+        onClick: viewPendingTasks,
+    },
+    {
+        label: "Ver alertas",
+        color: "bg-red-600 hover:bg-red-700",
+        onClick: viewAlerts,
+    },
+];
 </script>
 
 <template>
-    <!-- Head SOLO de Inertia (no vueuse/head) -->
     <Head title="Dashboard" />
 
     <AuthenticatedLayout>
@@ -74,93 +89,42 @@ const viewAlerts = () => {
         </template>
 
         <div class="py-12 max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            <!-- Bienvenida -->
-            <section class="bg-white shadow-sm rounded-lg p-6">
-                <p class="text-lg font-medium">Olá, você está logado!</p>
-                <p class="mt-2 text-gray-600">
-                    Aqui está um resumo rápido do seu projeto.
-                </p>
-            </section>
-
             <!-- Métricas -->
             <section class="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div class="bg-white p-6 rounded-lg shadow text-center">
-                    <div class="text-3xl font-bold text-blue-600">
-                        {{ stats.active_projects }}
-                    </div>
-                    <div class="mt-2 font-semibold text-gray-700">
-                        Projetos Ativos
-                    </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-lg shadow text-center">
-                    <div class="text-3xl font-bold text-green-600">
-                        {{ stats.pending_tasks }}
-                    </div>
-                    <div class="mt-2 font-semibold text-gray-700">
-                        Tarefas Pendentes
-                    </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-lg shadow text-center">
-                    <div class="text-3xl font-bold text-red-600">
-                        {{ stats.recent_alerts }}
-                    </div>
-                    <div class="mt-2 font-semibold text-gray-700">
-                        Alertas Recentes
-                    </div>
-                </div>
+                <StatsCard
+                    :value="stats.active_projects"
+                    label="Projetos Ativos"
+                    color="text-blue-600"
+                />
+                <StatsCard
+                    :value="stats.pending_tasks"
+                    label="Tarefas Pendentes"
+                    color="text-green-600"
+                />
+                <StatsCard
+                    :value="stats.recent_alerts"
+                    label="Alertas Recentes"
+                    color="text-red-600"
+                />
             </section>
 
-            <!-- Notificaciones -->
+            <!-- Ações rápidas -->
             <section class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-semibold mb-4">
-                    Notificações Recentes
-                </h3>
-
-                <ul
-                    v-if="notifications.length"
-                    class="list-disc list-inside space-y-2 text-gray-700"
-                >
-                    <li
-                        v-for="(notification, index) in notifications"
-                        :key="index"
-                    >
-                        {{ notification }}
-                    </li>
-                </ul>
-
-                <p v-else class="text-sm text-gray-500">
-                    Nenhuma notificação recente.
-                </p>
+                <QuickActions :actions="quickActions" />
             </section>
 
-            <!-- Acciones rápidas -->
+            <!-- Projetos -->
             <section class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-semibold mb-4">Ações Rápidas</h3>
+                <ProjectHealthList
+                    :projects="projects"
+                    :limit="5"
+                    :loading="!projects.length"
+                />
+            </section>
 
-                <div class="flex flex-wrap gap-4">
-                    <button
-                        class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-                        @click="createNewProject"
-                    >
-                        Criar novo projeto
-                    </button>
-
-                    <button
-                        class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-                        @click="viewPendingTasks"
-                    >
-                        Ver tarefas pendentes
-                    </button>
-
-                    <button
-                        class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
-                        @click="viewAlerts"
-                    >
-                        Ver alertas
-                    </button>
-                </div>
+            <!-- Notificações -->
+            <section class="bg-white p-6 rounded-lg shadow">
+                <NotificationsPanel :notifications="notifications" />
             </section>
         </div>
     </AuthenticatedLayout>
