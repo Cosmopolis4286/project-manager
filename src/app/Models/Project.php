@@ -5,11 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Modelo Project representa os projetos do sistema.
  *
- * Contém atributos, relacionamentos com tarefas e métodos auxiliares.
+ * Responsabilidades:
+ * - Gerenciar atributos do projeto
+ * - Relacionamento com tarefas
+ * - Cálculo de saúde do projeto
+ * - Ordenação automática (position)
  */
 class Project extends Model
 {
@@ -21,7 +26,9 @@ class Project extends Model
     protected $fillable = [
         'name',
         'description',
-        'status', // Incluido para filtrar projetos ativos
+        'status',
+        'user_id',
+        'position',
     ];
 
     /**
@@ -35,8 +42,11 @@ class Project extends Model
     }
 
     /**
-     * Atributo customizado para status de saúde do projeto.
-     * Avalia a proporção de tarefas atrasadas.
+     * Atributo calculado: Status de saúde do projeto.
+     *
+     * Regras:
+     * - Sem tarefas → Saudável
+     * - Mais de 20% das tarefas atrasadas → Em Alerta
      *
      * @return string
      */
@@ -53,7 +63,9 @@ class Project extends Model
             ->where('status', '!=', 'done')
             ->count();
 
-        return ($overdue / $total) > 0.2 ? 'Em Alerta' : 'Saudável';
+        return ($overdue / $total) > 0.2
+            ? 'Em Alerta'
+            : 'Saudável';
     }
 
     /**
@@ -65,5 +77,28 @@ class Project extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('status', 'active');
+    }
+
+    /**
+     * Boot do modelo.
+     *
+     * Define automaticamente a posição e usuário do projeto
+     * no momento da criação, garantindo ordenação estável
+     * por usuário.
+     *
+     * @return void
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Project $project) {
+            if (empty($project->user_id)) {
+                $project->user_id = Auth::id();
+            }
+
+            if ($project->position === null) {
+                $maxPosition = static::where('user_id', $project->user_id)->max('position');
+                $project->position = $maxPosition !== null ? $maxPosition + 1 : 1;
+            }
+        });
     }
 }
