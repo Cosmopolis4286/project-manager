@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\TaskController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -34,6 +35,16 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/projects/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
     Route::put('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
     Route::post('/projects/reorder', [ProjectController::class, 'reorder'])->name('projects.reorder');
+});
+
+Route::middleware(['auth'])->prefix('projects/{project}')->group(function () {
+    Route::get('tasks/create', [TaskController::class, 'create'])->name('tasks.create');
+    Route::post('tasks', [TaskController::class, 'store'])->name('tasks.store');
+});
+
+Route::middleware(['auth'])->prefix('tasks')->group(function () {
+    Route::get('{task}/edit', [TaskController::class, 'edit'])->name('tasks.edit');
+    Route::put('{task}', [TaskController::class, 'update'])->name('tasks.update');
 });
 
 require __DIR__ . '/auth.php';

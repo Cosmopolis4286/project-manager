@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Modelo Task representa as tarefas vinculadas a um projeto.
@@ -53,5 +54,25 @@ class Task extends Model
     public function scopePending($query)
     {
         return $query->where('status', 'pending');
+    }
+
+    /**
+     * Boot do modelo.
+     *
+     * Define automaticamente o status da tarefa e o usuário no momento da criação.
+     *
+     * @return void
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Task $task) {
+            if (empty($task->user_id)) {
+                $task->user_id = Auth::id();
+            }
+
+            if ($task->status === null) {
+                $task->status = 'pending';
+            }
+        });
     }
 }
