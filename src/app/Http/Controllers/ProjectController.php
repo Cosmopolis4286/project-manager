@@ -51,7 +51,7 @@ class ProjectController extends Controller
      */
     public function show(Project $project): Response
     {
-        $this->authorizeProjectOwner($project);
+        $this->authorize('view', $project);
 
         $project->load('tasks');
 
@@ -82,11 +82,13 @@ class ProjectController extends Controller
     {
         return $this->handleService(function () use ($request) {
             $validated = $request->validate([
-                'name'        => ['required', 'string', 'max:255'],
+                'name' => ['required', 'string', 'max:255'],
                 'description' => ['nullable', 'string'],
             ]);
 
-            Project::create($validated);
+            $this->authorize('create', Project::class);
+
+            $this->service->createProject($validated);
 
             return redirect()
                 ->route('projects.index')
@@ -102,7 +104,7 @@ class ProjectController extends Controller
      */
     public function edit(Project $project): Response
     {
-        $this->authorizeProjectOwner($project);
+        $this->authorize('update', $project);
 
         return Inertia::render('Projects/Edit', [
             'project' => $project,
@@ -119,14 +121,14 @@ class ProjectController extends Controller
     public function update(Request $request, Project $project)
     {
         return $this->handleService(function () use ($request, $project) {
-            $this->authorizeProjectOwner($project);
+            $this->authorize('update', $project);
 
             $validated = $request->validate([
                 'name'        => ['required', 'string', 'max:255'],
                 'description' => ['nullable', 'string'],
             ]);
 
-            $project->update($validated);
+            $this->service->updateProject($project, $validated);
 
             return redirect()
                 ->route('projects.index')
@@ -151,30 +153,21 @@ class ProjectController extends Controller
                 'projects.*.position' => ['required', 'integer'],
             ]);
 
-            $userId = Auth::id();
+            // Validar autorização para cada projeto
+            $projectIds = array_column($request->projects, 'id');
+            $projects = Project::whereIn('id', $projectIds)->get()->keyBy('id');
 
             foreach ($request->projects as $projectData) {
-                Project::where('id', $projectData['id'])
-                    ->where('user_id', $userId)
-                    ->update(['position' => $projectData['position']]);
+                $project = $projects->get($projectData['id']);
+                if (!$project) {
+                    abort(404, "Projeto ID {$projectData['id']} não encontrado.");
+                }
+                $this->authorize('update', $project);
             }
+
+            $this->service->reorderProjects($request->projects);
 
             return back()->with('success', 'Ordem dos projetos atualizada com sucesso!');
         }, 'Erro ao reordenar os projetos. Por favor, tente novamente.');
-    }
-
-    /**
-     * Garante que o projeto pertence ao usuário autenticado.
-     *
-     * @param Project $project
-     * @return void
-     *
-     * @throws \Illuminate\Auth\Access\AuthorizationException
-     */
-    protected function authorizeProjectOwner(Project $project): void
-    {
-        if ($project->user_id !== Auth::id()) {
-            abort(403, 'Acesso negado.');
-        }
     }
 }
