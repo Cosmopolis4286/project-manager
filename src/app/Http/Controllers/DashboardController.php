@@ -52,14 +52,16 @@ class DashboardController extends Controller
                 return [
                     'id'        => $project->id,
                     'name'      => $project->name,
+                    'description' => $project->description,
                     'health'    => $project->health_status,
+                    'tasks_count' => $project->tasks_count,
                     'progress'  => $progress,
                 ];
             });
 
         return Inertia::render('Dashboard', [
             'stats' => [
-                'active_projects' => Project::where('user_id', $userId)->count(),
+                'active_projects' => Project::where('user_id', $userId)->where('status', 'active')->count(),
                 'pending_tasks'   => Task::where('user_id', $userId)->where('status', 'pending')->count(),
                 'recent_alerts'   => $projects->where('health', 'Em Alerta')->count(),
             ],

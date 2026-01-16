@@ -63,7 +63,7 @@ const goToProject = (id) => {
             @click="goToProject(project.id)"
             class="cursor-pointer hover:bg-gray-50 p-3 rounded transition"
         >
-            <div class="flex justify-between items-center mb-2">
+            <div class="flex justify-between items-center">
                 <div class="flex items-center gap-2">
                     <span
                         :class="
@@ -100,6 +100,9 @@ const goToProject = (id) => {
                 </span>
             </div>
 
+            <p class="font-medium text-gray-400 mb-1">
+                {{ project.description }}
+            </p>
             <!-- Barra de progresso -->
             <div class="w-full bg-gray-200 rounded-full h-2">
                 <div
@@ -116,7 +119,8 @@ const goToProject = (id) => {
             </div>
 
             <p class="text-xs text-gray-500 mt-1">
-                {{ project.progress }}% concluído
+                {{ project.tasks_count }} tarefas | {{ project.progress }}%
+                concluído
             </p>
         </li>
     </ul>
