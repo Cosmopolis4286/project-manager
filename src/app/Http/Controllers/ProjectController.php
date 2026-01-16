@@ -4,25 +4,27 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ProjectController extends Controller
 {
     /**
-     * Lista todos os projetos.
-     *
-     * Retorna os projetos com:
-     * - quantidade de tarefas
-     * - status de saúde do projeto
+     * Lista todos os projetos do usuário autenticado,
+     * com contagem de tarefas e status de saúde.
      *
      * @return Response
      */
     public function index(): Response
     {
+        $userId = Auth::id();
+
         $projects = Project::query()
+            ->where('user_id', $userId)
             ->withCount('tasks')
-            ->get(['id', 'name', 'health_status']);
+            ->orderBy('position', 'asc')
+            ->get(['id', 'name', 'position']);
 
         return Inertia::render('Projects/Index', [
             'projects' => $projects->map(fn(Project $project) => [
@@ -30,18 +32,21 @@ class ProjectController extends Controller
                 'name'        => $project->name,
                 'health'      => $project->health_status,
                 'tasks_count' => $project->tasks_count,
+                'position'    => $project->position,
             ]),
         ]);
     }
 
     /**
-     * Exibe os detalhes de um projeto específico.
+     * Exibe detalhes de um projeto específico.
      *
      * @param Project $project
      * @return Response
      */
     public function show(Project $project): Response
     {
+        $this->authorizeProjectOwner($project);
+
         $project->load('tasks');
 
         return Inertia::render('Projects/Show', [
@@ -50,7 +55,7 @@ class ProjectController extends Controller
     }
 
     /**
-     * Exibe o formulário de criação de projeto.
+     * Formulário para criar novo projeto.
      *
      * @return Response
      */
@@ -60,7 +65,7 @@ class ProjectController extends Controller
     }
 
     /**
-     * Armazena um novo projeto no banco de dados.
+     * Armazena um novo projeto para o usuário autenticado.
      *
      * @param Request $request
      * @return \Illuminate\Http\RedirectResponse
@@ -80,20 +85,22 @@ class ProjectController extends Controller
     }
 
     /**
-     * Exibe o formulário de edição de um projeto.
+     * Formulário para editar projeto.
      *
      * @param Project $project
      * @return Response
      */
     public function edit(Project $project): Response
     {
+        $this->authorizeProjectOwner($project);
+
         return Inertia::render('Projects/Edit', [
             'project' => $project,
         ]);
     }
 
     /**
-     * Atualiza os dados de um projeto existente.
+     * Atualiza projeto existente.
      *
      * @param Request $request
      * @param Project $project
@@ -101,6 +108,8 @@ class ProjectController extends Controller
      */
     public function update(Request $request, Project $project)
     {
+        $this->authorizeProjectOwner($project);
+
         $validated = $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -111,5 +120,47 @@ class ProjectController extends Controller
         return redirect()
             ->route('projects.index')
             ->with('success', 'Projeto atualizado com sucesso!');
+    }
+
+    /**
+     * Reordena projetos via drag & drop.
+     *
+     * Espera payload com array de objetos contendo 'id' e 'position'.
+     *
+     * @param Request $request
+     */
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'projects'            => ['required', 'array'],
+            'projects.*.id'       => ['required', 'integer', 'exists:projects,id'],
+            'projects.*.position' => ['required', 'integer'],
+        ]);
+
+        $userId = Auth::id();
+
+        // Atualiza em batch, garantindo pertencer ao usuário
+        foreach ($request->projects as $projectData) {
+            Project::where('id', $projectData['id'])
+                ->where('user_id', $userId)
+                ->update(['position' => $projectData['position']]);
+        }
+
+        return back();
+    }
+
+    /**
+     * Garante que o projeto pertence ao usuário autenticado.
+     *
+     * @param Project $project
+     * @return void
+     *
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    protected function authorizeProjectOwner(Project $project): void
+    {
+        if ($project->user_id !== Auth::id()) {
+            abort(403, 'Acesso negado.');
+        }
     }
 }

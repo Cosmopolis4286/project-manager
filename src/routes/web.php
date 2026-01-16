@@ -33,6 +33,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
     Route::get('/projects/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
     Route::put('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
+    Route::post('/projects/reorder', [ProjectController::class, 'reorder'])->name('projects.reorder');
 });
 
 require __DIR__ . '/auth.php';
