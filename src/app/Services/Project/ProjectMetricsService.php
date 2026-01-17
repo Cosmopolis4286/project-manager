@@ -7,7 +7,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Service responsável pelo Read Model de Projetos.
+ * Serviço responsável pelo Read Model de Projetos.
  *
  * Implementa um CQRS light:
  * - Apenas leitura
@@ -29,27 +29,50 @@ class ProjectMetricsService
     protected int $ttl = 300; // 5 minutos
 
     /**
-     * Retorna projetos do usuário com métricas de progresso.
+     * Retorna projetos recentes do usuário com métricas de progresso.
      *
-     * Suporta:
-     * - Busca textual (nome e descrição)
-     * - Limite de resultados
-     * - Cache isolado por usuário + filtros
+     * Usado para dashboard, traz projetos limitados sem filtro textual ou de saúde.
      *
      * @param int $userId ID do usuário autenticado
-     * @param string|null $search Termo de busca textual
-     * @param int|null $limit Limite de projetos
-     *
-     * @return Collection Coleção pronta para consumo pela UI
+     * @param int $limit Limite de projetos retornados
+     * @return Collection<int, array<string, mixed>> Coleção de projetos normalizados para UI
      */
-    public function getProjectsWithProgress(
+    public function getRecentProjects(int $userId, int $limit = 10): Collection
+    {
+        $cacheKey = $this->cacheKey($userId, null, $limit);
+
+        return Cache::remember($cacheKey, $this->ttl, function () use ($userId, $limit) {
+            return Project::query()
+                ->where('user_id', $userId)
+                ->withCount([
+                    'tasks',
+                    'tasks as completed_tasks_count' => fn($query) => $query->where('status', 'done'),
+                ])
+                ->orderBy('position')
+                ->limit($limit)
+                ->get()
+                ->map(fn(Project $project) => $this->mapProject($project));
+        });
+    }
+
+    /**
+     * Retorna projetos do usuário com filtros opcionais e métricas de progresso.
+     *
+     * Suporta busca textual por nome/descrição e filtro por status de saúde.
+     *
+     * @param int $userId ID do usuário autenticado
+     * @param string|null $search Termo de busca textual (nome ou descrição)
+     * @param string|null $healthStatus Filtro por status de saúde (ex: 'Em Alerta', 'Saudável', 'all')
+     * @return Collection<int, array<string, mixed>> Coleção de projetos normalizados para UI
+     */
+    public function getProjectsWithFilters(
         int $userId,
         ?string $search = null,
-        ?int $limit = null
+        ?string $healthStatus = null
     ): Collection {
-        $cacheKey = $this->cacheKey($userId, $search, $limit);
+        $cacheKey = $this->cacheKey($userId, $search, null);
 
-        return Cache::remember($cacheKey, $this->ttl, function () use ($userId, $search, $limit) {
+        $projects = Cache::remember($cacheKey, $this->ttl, function () use ($userId, $search) {
             $query = Project::query()
                 ->where('user_id', $userId)
                 ->when(
@@ -61,19 +84,18 @@ class ProjectMetricsService
                 )
                 ->withCount([
                     'tasks',
-                    'tasks as completed_tasks_count' => fn($query) =>
-                    $query->where('status', 'done'),
+                    'tasks as completed_tasks_count' => fn($query) => $query->where('status', 'done'),
                 ])
                 ->orderBy('position');
 
-            if ($limit !== null) {
-                $query->limit($limit);
-            }
-
-            return $query
-                ->get()
-                ->map(fn(Project $project) => $this->mapProject($project));
+            return $query->get();
         });
+
+        if ($healthStatus && $healthStatus !== 'all') {
+            $projects = $projects->filter(fn(Project $project) => $project->health_status === $healthStatus);
+        }
+
+        return $projects->map(fn(Project $project) => $this->mapProject($project))->values();
     }
 
     /**
@@ -114,7 +136,6 @@ class ProjectMetricsService
      * @param int $userId
      * @param string|null $search
      * @param int|null $limit
-     *
      * @return string
      */
     protected function cacheKey(
