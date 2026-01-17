@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\Task;
+use App\Services\Project\ProjectMetricsService;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -13,6 +14,10 @@ use Inertia\Response;
  */
 class DashboardController extends Controller
 {
+    public function __construct(
+        protected ProjectMetricsService $projectMetrics
+    ) {}
+
     /**
      * Exibe o dashboard principal.
      *
@@ -33,31 +38,7 @@ class DashboardController extends Controller
          *
          * ⚠️ Eager loading otimizado (1 query)
          */
-        $projects = Project::query()
-            ->where('user_id', $userId)
-            ->withCount([
-                'tasks',
-                'tasks as completed_tasks_count' => function ($query) {
-                    $query->where('status', 'done');
-                },
-            ])
-            ->orderBy('position')
-            ->limit(10)
-            ->get()
-            ->map(function (Project $project) {
-                $progress = $project->tasks_count > 0
-                    ? round(($project->completed_tasks_count / $project->tasks_count) * 100)
-                    : 0;
-
-                return [
-                    'id'        => $project->id,
-                    'name'      => $project->name,
-                    'description' => $project->description,
-                    'health'    => $project->health_status,
-                    'tasks_count' => $project->tasks_count,
-                    'progress'  => $progress,
-                ];
-            });
+        $projects = $this->projectMetrics->getProjectsWithProgress($userId, 10);
 
         return Inertia::render('Dashboard', [
             'stats' => [
