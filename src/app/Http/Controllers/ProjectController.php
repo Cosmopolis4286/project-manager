@@ -3,7 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
-use App\Services\ProjectService;
+use App\Services\Project\ProjectService;
+use App\Services\Project\ProjectMetricsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -12,34 +13,66 @@ use Inertia\Response;
 class ProjectController extends Controller
 {
     public function __construct(
-        protected ProjectService $service
+        protected ProjectService $service,
+        protected ProjectMetricsService $projectMetrics
     ) {}
 
     /**
-     * Lista todos os projetos do usuário autenticado,
-     * com contagem de tarefas e status de saúde.
+     * Lista os projetos do usuário autenticado.
      *
+     * Responsabilidades:
+     * - Orquestrar filtros vindos da query string
+     * - Delegar leitura ao read model (CQRS light)
+     * - Não conter lógica de domínio
+     *
+     * Filtros suportados:
+     * - status:
+     *   - all | null → todos
+     *   - Em Alerta
+     *   - Saudável
+     * - search:
+     *   - Busca textual por nome ou descrição
+     *
+     * @param Request $request
      * @return Response
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        $userId = Auth::id();
+        $userId = (int) $request->user()->id;
 
-        $projects = Project::query()
-            ->where('user_id', $userId)
-            ->withCount('tasks')
-            ->orderBy('position', 'asc')
-            ->get(['id', 'name', 'description', 'position']);
+        /**
+         * Filtro de status de saúde do projeto.
+         */
+        $status = $request->query('status', 'all');
+
+        /**
+         * Termo de busca textual.
+         */
+        $search = trim((string) $request->query('search', ''));
+
+        /**
+         * Leitura via read model (cacheado por usuário).
+         */
+        $projects = $this->projectMetrics
+            ->getProjectsWithProgress(
+                userId: $userId,
+                search: $search
+            )
+            ->when(
+                $status !== 'all',
+                fn($collection) => $collection
+                    ->filter(
+                        fn(array $project) => $project['health'] === $status
+                    )
+                    ->values()
+            );
 
         return Inertia::render('Projects/Index', [
-            'projects' => $projects->map(fn(Project $project) => [
-                'id'          => $project->id,
-                'name'        => $project->name,
-                'description' => $project->description,
-                'health'      => $project->health_status,
-                'tasks_count' => $project->tasks_count,
-                'position'    => $project->position,
-            ]),
+            'projects' => $projects,
+            'filters' => [
+                'status' => $status,
+                'search' => $search,
+            ],
         ]);
     }
 
