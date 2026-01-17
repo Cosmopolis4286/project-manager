@@ -22,11 +22,7 @@ const isCritical = computed(() => props.project.health === "Em Alerta");
  * Percentual de tarefas concluídas.
  */
 const progress = computed(() => {
-    if (!props.project.tasks_count) return 0;
-    console.log(props.project.completed_tasks , props.project.tasks_count);
-    return Math.round(
-        (props.project.completed_tasks / props.project.tasks_count) * 100
-    );
+    return props.project.progress ?? 0;
 });
 
 const goToShow = () => router.visit(route("projects.show", props.project.id));
