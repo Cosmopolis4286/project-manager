@@ -7,6 +7,8 @@ import { computed } from "vue";
 import { router } from "@inertiajs/vue3";
 import Swal from "sweetalert2";
 
+const emit = defineEmits(['projectDeleted']);
+
 const props = defineProps({
     project: {
         type: Object,
@@ -33,8 +35,8 @@ const goToEdit = () => router.visit(route("projects.edit", props.project.id));
 /**
  * Confirmação e exclusão do projeto via SweetAlert2.
  */
-const deleteProject = async () => {
-    const result = await Swal.fire({
+const deleteProject = () => {
+    Swal.fire({
         title: "Confirma exclusão?",
         text: "Esta ação não pode ser desfeita!",
         icon: "warning",
@@ -43,18 +45,29 @@ const deleteProject = async () => {
         cancelButtonColor: "#3085d6",
         confirmButtonText: "Sim, excluir",
         cancelButtonText: "Cancelar",
+    }).then((result) => {
+        if (result.isConfirmed) {
+            router.delete(route("projects.destroy", props.project.id), {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    Swal.fire(
+                        "Excluído!",
+                        "Projeto excluído com sucesso.",
+                        "success",
+                    );
+                    emit("projectDeleted", props.project.id);
+                },
+                onError: () => {
+                    Swal.fire(
+                        "Erro",
+                        "Não foi possível excluir o projeto.",
+                        "error",
+                    );
+                },
+            });
+        }
     });
-
-    if (result.isConfirmed) {
-        router.delete(route("projects.destroy", props.project.id), {
-            onSuccess: () => {
-                Swal.fire("Excluído!", "Projeto excluído com sucesso.", "success");
-            },
-            onError: () => {
-                Swal.fire("Erro", "Não foi possível excluir o projeto.", "error");
-            },
-        });
-    }
 };
 </script>
 
