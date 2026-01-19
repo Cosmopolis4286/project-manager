@@ -8,20 +8,24 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Modelo Project representa os projetos do sistema.
+ * Modelo Project.
+ *
+ * Representa um projeto pertencente a um usuário e
+ * agrega regras de domínio relacionadas ao seu estado
+ * e à organização de suas tarefas.
  *
  * Responsabilidades:
- * - Gerenciar atributos do projeto
- * - Relacionamento com tarefas
- * - Cálculo de saúde do projeto
- * - Ordenação automática (position)
+ * - Gerenciar atributos persistentes do projeto
+ * - Manter relacionamento com tarefas
+ * - Determinar e persistir o status do projeto (active | alert)
+ * - Garantir ordenação estável por usuário (position)
  */
 class Project extends Model
 {
     /**
-     * Atributos que podem ser atribuídos em massa.
+     * Atributos atribuíveis em massa.
      *
-     * @var string[]
+     * @var array<int, string>
      */
     protected $fillable = [
         'name',
@@ -32,7 +36,7 @@ class Project extends Model
     ];
 
     /**
-     * Relacionamento: Um projeto possui muitas tarefas.
+     * Relacionamento: um projeto possui várias tarefas.
      *
      * @return HasMany
      */
@@ -42,34 +46,24 @@ class Project extends Model
     }
 
     /**
-     * Atributo calculado: Status de saúde do projeto.
+     * Atributo calculado para exibição do status de saúde do projeto.
      *
-     * Regras:
-     * - Sem tarefas → Saudável
-     * - Mais de 20% das tarefas atrasadas → Em Alerta
+     * OBS:
+     * Este accessor é apenas para apresentação.
+     * A decisão do status é persistida no banco através
+     * do método recalculateStatus().
      *
      * @return string
      */
     public function getHealthStatusAttribute(): string
     {
-        $total = $this->tasks()->count();
-
-        if ($total === 0) {
-            return 'Saudável';
-        }
-
-        $overdue = $this->tasks()
-            ->where('deadline', '<', now())
-            ->where('status', '!=', 'done')
-            ->count();
-
-        return ($overdue / $total) > 0.2
+        return $this->status === 'alert'
             ? 'Em Alerta'
             : 'Saudável';
     }
 
     /**
-     * Scope para filtrar projetos ativos.
+     * Scope para retornar apenas projetos ativos.
      *
      * @param Builder $query
      * @return Builder
@@ -80,11 +74,54 @@ class Project extends Model
     }
 
     /**
+     * Recalcula e persiste o status do projeto com base
+     * no estado de suas tarefas.
+     *
+     * Regras de negócio:
+     * - Sem tarefas → status "active"
+     * - Mais de 20% das tarefas atrasadas (deadline < now e != done)
+     *   → status "alert"
+     *
+     * Este método representa uma regra central de domínio
+     * e deve ser chamado sempre que uma tarefa for criada,
+     * atualizada ou removida.
+     *
+     * @return void
+     */
+    public function recalculateStatus(): void
+    {
+        $totalTasks = $this->tasks()->count();
+
+        if ($totalTasks === 0) {
+            if ($this->status !== 'active') {
+                $this->update(['status' => 'active']);
+            }
+            return;
+        }
+
+        $overdueTasks = $this->tasks()
+            ->where('deadline', '<', now())
+            ->where('status', '!=', 'done')
+            ->count();
+
+        $newStatus = ($overdueTasks / $totalTasks) > 0.2
+            ? 'alert'
+            : 'active';
+
+        if ($this->status !== $newStatus) {
+            $this->update(['status' => $newStatus]);
+        }
+    }
+
+    /**
      * Boot do modelo.
      *
-     * Define automaticamente a posição e usuário do projeto
-     * no momento da criação, garantindo ordenação estável
-     * por usuário.
+     * Define automaticamente:
+     * - o usuário proprietário do projeto
+     * - a posição do projeto dentro da ordenação do usuário
+     *
+     * Garante que novos projetos sejam sempre inseridos
+     * ao final da lista do respectivo usuário.
      *
      * @return void
      */
@@ -96,8 +133,12 @@ class Project extends Model
             }
 
             if ($project->position === null) {
-                $maxPosition = static::where('user_id', $project->user_id)->max('position');
-                $project->position = $maxPosition !== null ? $maxPosition + 1 : 1;
+                $maxPosition = static::where('user_id', $project->user_id)
+                    ->max('position');
+
+                $project->position = $maxPosition !== null
+                    ? $maxPosition + 1
+                    : 1;
             }
         });
     }
