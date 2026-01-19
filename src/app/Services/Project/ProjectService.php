@@ -31,21 +31,22 @@ class ProjectService
     /**
      * Cria um novo projeto para o usuário autenticado.
      *
+     * Após a criação, invalida o cache de métricas do usuário
+     * para garantir que dashboards e listagens reflitam os
+     * dados atualizados.
+     *
      * @param array $data Dados validados do projeto
      * @return Project Projeto criado
-     *
-     * @throws \RuntimeException Caso ocorra algum erro ao criar o projeto
      */
     public function createProject(array $data): Project
     {
-        try {
-            $data['user_id'] = Auth::id();
-            $project = Project::create($data);
-            $this->metrics->clearUserCache($data['user_id']);
-            return $project;
-        } catch (\Exception $e) {
-            throw new \RuntimeException('Erro ao criar o projeto', 0, $e);
-        }
+        $data['user_id'] = Auth::id();
+
+        $project = Project::create($data);
+
+        $this->metrics->clearUserCache($data['user_id']);
+
+        return $project;
     }
 
     /**
