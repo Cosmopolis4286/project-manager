@@ -29,10 +29,10 @@ class Task extends Model
     /**
      * Casts para conversão de atributos.
      *
-     * @var array<string, string>
+     * @var array<string, 'datetime'>
      */
     protected $casts = [
-        'deadline' => 'date',
+        'deadline' => 'datetime',
     ];
 
     /**
