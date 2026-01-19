@@ -10,9 +10,12 @@
  */
 
 import { Head, usePage, router } from "@inertiajs/vue3";
+import { ref, watch } from "vue";
+
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import StatsCard from "@/Components/Dashboard/StatsCard.vue";
 import QuickActions from "@/Components/Dashboard/QuickActions.vue";
+import ProjectFilters from "@/Components/Projects/ProjectFilters.vue";
 import ProjectHealthList from "@/Components/Projects/ProjectHealthList.vue";
 import NotificationsPanel from "@/Components/Dashboard/NotificationsPanel.vue";
 
@@ -20,6 +23,32 @@ import NotificationsPanel from "@/Components/Dashboard/NotificationsPanel.vue";
  * Props recebidas via Inertia.
  */
 const page = usePage();
+
+/**
+ * Objeto reativo que armazena os filtros inicializados a partir da URL.
+ * @type {import('vue').Ref<{ search: string }>}
+ */
+const filters = ref({
+    search: page.props.filters?.search ?? "",
+});
+
+/**
+ * Observa mudanças no objeto de filtros e sincroniza com o servidor
+ * enviando uma requisição GET para a rota "dashboard" com os filtros atualizados.
+ *
+ * @param {Object} value - O valor atual dos filtros observados.
+ * @returns {void}
+ */
+watch(
+    filters,
+    (value) => {
+        router.get(route("dashboard"), value, {
+            preserveScroll: true,
+            replace: true,
+        });
+    },
+    { deep: true },
+);
 
 /**
  * Métricas principais.
@@ -116,6 +145,12 @@ const quickActions = [
 
             <!-- Projetos -->
             <section class="bg-white p-6 rounded-lg shadow">
+                <ProjectFilters
+                    title="📊 Saúde dos Projetos"
+                    :filters="filters"
+                    @update:filters="filters = $event"
+                />
+
                 <ProjectHealthList :projects="projects" :limit="5" />
             </section>
 
