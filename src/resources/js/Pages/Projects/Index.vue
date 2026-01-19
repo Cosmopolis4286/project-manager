@@ -20,7 +20,7 @@ import ProjectCard from "@/Components/Projects/ProjectCard.vue";
 import ProjectSearch from "@/Components/Projects/ProjectSearch.vue";
 
 /**
- * Props vindas do backend
+ * Props recebidas do backend contendo os projetos e filtros atuais.
  */
 const props = defineProps({
     projects: {
@@ -37,25 +37,28 @@ const props = defineProps({
 });
 
 /**
- * Projetos locais (apenas para drag & drop)
+ * Estado local da lista de projetos para manipulação visual,
+ * especialmente para o drag & drop.
  */
 const localProjects = ref([...props.projects]);
 
 /**
- * Filtros
+ * Estado dos filtros locais sincronizados com a query string.
  */
 const statusFilter = ref(props.filters.status ?? "all");
 const searchFilter = ref(props.filters.search ?? "");
 
 /**
- * Indica se existe qualquer filtro ativo
+ * Computed que indica se algum filtro está ativo.
+ * Isso bloqueia a reordenação via drag & drop enquanto ativo.
  */
 const isFiltered = computed(() => {
     return statusFilter.value !== "all" || searchFilter.value.length > 0;
 });
 
 /**
- * Sincroniza lista local quando backend atualiza
+ * Watch para manter a lista local sincronizada quando
+ * os projetos vindos do backend forem atualizados.
  */
 watch(
     () => props.projects,
@@ -65,7 +68,8 @@ watch(
 );
 
 /**
- * Atualiza URL ao mudar filtros
+ * Watch para atualizar a URL e filtros via query string
+ * quando os filtros forem modificados pelo usuário.
  */
 watch([statusFilter, searchFilter], () => {
     router.get(
@@ -83,12 +87,14 @@ watch([statusFilter, searchFilter], () => {
 });
 
 /**
- * Estado visual de persistência da ordenação
+ * Flag para indicar estado de persistência da ordenação.
+ * Usada para mostrar feedback visual para o usuário.
  */
 const isPersisting = ref(false);
 
 /**
- * Persiste nova ordem
+ * Persiste a nova ordem dos projetos no backend,
+ * enviando o payload apenas quando não há filtros ativos.
  */
 function persistOrder() {
     if (isFiltered.value) return;
@@ -112,9 +118,20 @@ function persistOrder() {
 }
 
 /**
- * Navega para criação
+ * Navega para a página de criação de novo projeto.
  */
 const goToCreate = () => router.visit(route("projects.create"));
+
+/**
+ * Handler para remoção local de projeto após exclusão bem-sucedida.
+ *
+ * @param {number} deletedProjectId - ID do projeto que foi excluído.
+ */
+function handleProjectDeleted(deletedProjectId) {
+    localProjects.value = localProjects.value.filter(
+        (project) => project.id !== deletedProjectId,
+    );
+}
 </script>
 
 <template>
@@ -126,10 +143,10 @@ const goToCreate = () => router.visit(route("projects.create"));
                 <h2 class="text-xl font-semibold">Projetos</h2>
 
                 <div class="flex gap-3 items-center">
-                    <!-- Buscador -->
+                    <!-- Componente para busca textual de projetos -->
                     <ProjectSearch v-model="searchFilter" />
 
-                    <!-- Filtro de status -->
+                    <!-- Select para filtro por status de saúde do projeto -->
                     <select
                         v-model="statusFilter"
                         class="border rounded px-3 py-2 text-sm"
@@ -139,6 +156,7 @@ const goToCreate = () => router.visit(route("projects.create"));
                         <option value="Saudável">Saudáveis</option>
                     </select>
 
+                    <!-- Botão para criar novo projeto -->
                     <button
                         @click="goToCreate"
                         class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
@@ -150,7 +168,7 @@ const goToCreate = () => router.visit(route("projects.create"));
         </template>
 
         <section class="p-6 max-w-7xl mx-auto">
-            <!-- Aviso -->
+            <!-- Aviso sobre impossibilidade de reordenação se filtros estiverem ativos -->
             <div
                 v-if="isFiltered && localProjects.length"
                 class="mb-4 text-center text-sm text-gray-500"
@@ -158,7 +176,7 @@ const goToCreate = () => router.visit(route("projects.create"));
                 Desative os filtros para reordenar projetos
             </div>
 
-            <!-- Feedback -->
+            <!-- Feedback visual durante a persistência da ordenação -->
             <div
                 v-if="isPersisting"
                 class="mb-4 text-center text-blue-600 font-medium"
@@ -166,7 +184,7 @@ const goToCreate = () => router.visit(route("projects.create"));
                 Salvando nova ordem...
             </div>
 
-            <!-- Lista -->
+            <!-- Lista de projetos com suporte a drag & drop para reordenação -->
             <draggable
                 v-if="localProjects.length"
                 v-model="localProjects"
@@ -178,11 +196,14 @@ const goToCreate = () => router.visit(route("projects.create"));
                 @end="persistOrder"
             >
                 <template #item="{ element }">
-                    <ProjectCard :project="element" />
+                    <ProjectCard
+                        :project="element"
+                        @projectDeleted="handleProjectDeleted"
+                    />
                 </template>
             </draggable>
 
-            <!-- Estado vazio -->
+            <!-- Mensagem para estado vazio, adaptando mensagem conforme filtros -->
             <div
                 v-else
                 class="flex flex-col items-center justify-center text-center py-16 bg-white rounded-lg shadow"
