@@ -54,17 +54,10 @@ class ProjectController extends Controller
          * Leitura via read model (cacheado por usuário).
          */
         $projects = $this->projectMetrics
-            ->getProjectsWithProgress(
+            ->getProjectsWithFilters(
                 userId: $userId,
-                search: $search
-            )
-            ->when(
-                $status !== 'all',
-                fn($collection) => $collection
-                    ->filter(
-                        fn(array $project) => $project['health'] === $status
-                    )
-                    ->values()
+                search: $search,
+                healthStatus: $status
             );
 
         return Inertia::render('Projects/Index', [
