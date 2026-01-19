@@ -203,20 +203,13 @@ class ProjectController extends Controller
     public function destroy(Project $project)
     {
         return $this->handleService(function () use ($project) {
-
             $this->authorize('delete', $project);
 
-            try {
-                $project->delete();
+            $this->service->delete($project->id);
 
-                return redirect()
-                    ->route('projects.index')
-                    ->with('success', 'Projeto excluído com sucesso!');
-            } catch (\Exception $e) {
-                return redirect()
-                    ->route('projects.index')
-                    ->with('error', 'Erro ao excluir o projeto. Por favor, tente novamente.');
-            }
+            return redirect()
+                ->route('projects.index')
+                ->with('success', 'Projeto excluído com sucesso!');
         }, 'Erro ao excluir o projeto. Por favor, tente novamente.');
     }
 }
