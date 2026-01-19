@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\Task;
 use App\Services\Project\ProjectMetricsService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -19,34 +20,82 @@ class DashboardController extends Controller
     ) {}
 
     /**
-     * Exibe o dashboard principal.
+     * Exibe o dashboard principal do usuário autenticado.
      *
-     * Carrega métricas globais e lista resumida de projetos
-     * com indicadores de saúde e progresso.
+     * Responsabilidades:
+     * - Carregar métricas globais (projetos ativos, tarefas pendentes, alertas)
+     * - Retornar projetos recentes ou filtrados por busca textual
+     * - Sincronizar filtros recebidos via query string com a UI (Inertia)
      *
-     * @return Response
+     * Regras:
+     * - Sem termo de busca → projetos recentes (limitados)
+     * - Com termo de busca → lista filtrada (server-side)
+     *
+     * @param  Request  $request  Request HTTP com filtros opcionais (ex: search)
+     * @return Response           Resposta Inertia para a view Dashboard
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        /** @var int $userId */
         $userId = Auth::id();
 
         /**
-         * Projetos recentes com:
-         * - total de tarefas
-         * - tarefas concluídas
-         * - cálculo de progresso (%)
+         * Termo de busca textual (nome ou descrição do projeto).
          *
-         * ⚠️ Eager loading otimizado (1 query)
+         * Normalizado:
+         * - trim automático
+         * - string vazia tratada como null
          */
-        $projects = $this->projectMetrics->getProjectsWithProgress($userId, 10);
+        $search = $request->string('search')->trim()->toString();
+
+        /**
+         * Projetos exibidos no dashboard.
+         *
+         * - Sem busca: projetos recentes (resumo)
+         * - Com busca: projetos filtrados (server-side)
+         */
+        $projects = filled($search)
+            ? $this->projectMetrics->getProjectsWithFilters(
+                userId: $userId,
+                search: $search
+            )
+            : $this->projectMetrics->getRecentProjects($userId, 10);
 
         return Inertia::render('Dashboard', [
-            'stats' => [
-                'active_projects' => Project::where('user_id', $userId)->where('status', 'active')->count(),
-                'pending_tasks'   => Task::where('user_id', $userId)->where('status', 'pending')->count(),
-                'recent_alerts'   => $projects->where('health', 'Em Alerta')->count(),
+            /**
+             * Filtros ativos (refletidos na UI).
+             */
+            'filters' => [
+                'search' => $search,
             ],
+
+            /**
+             * Métricas globais do dashboard.
+             */
+            'stats' => [
+                'active_projects' => Project::where('user_id', $userId)
+                    ->where('status', 'active')
+                    ->count(),
+
+                'pending_tasks' => Task::where('user_id', $userId)
+                    ->where('status', 'pending')
+                    ->count(),
+
+                'recent_alerts' => $projects
+                    ->where('health', 'Em Alerta')
+                    ->count(),
+            ],
+
+            /**
+             * Projetos com métricas normalizadas para UI.
+             *
+             * @var \Illuminate\Support\Collection<int, array<string, mixed>>
+             */
             'projects' => $projects,
+
+            /**
+             * Notificações recentes do usuário.
+             */
             'notifications' => [],
         ]);
     }
