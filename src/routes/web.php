@@ -35,6 +35,7 @@ Route::middleware(['auth'])->prefix('projects')->group(function () {
     Route::get('{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
     Route::put('{project}', [ProjectController::class, 'update'])->name('projects.update');
     Route::post('reorder', [ProjectController::class, 'reorder'])->name('projects.reorder');
+    Route::delete('{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
 });
 
 Route::middleware(['auth'])->prefix('projects/{project}')->group(function () {
