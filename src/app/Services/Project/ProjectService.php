@@ -102,4 +102,32 @@ class ProjectService
 
         $this->metrics->clearUserCache($userId);
     }
+
+    /**
+     * Exclui um projeto do usuário autenticado.
+     *
+     * Realiza verificação de propriedade e invalida cache.
+     *
+     * @param int $projectId ID do projeto a ser excluído
+     * @return void
+     *
+     * @throws ModelNotFoundException Caso o projeto não pertença ao usuário ou não exista
+     * @throws \RuntimeException Em caso de erro na exclusão
+     */
+    public function delete(int $projectId): void
+    {
+        $userId = Auth::id();
+
+        $project = Project::where('id', $projectId)
+            ->where('user_id', $userId)
+            ->firstOrFail();
+
+        try {
+            $project->delete();
+
+            $this->metrics->clearUserCache($userId);
+        } catch (\Exception $e) {
+            throw new \RuntimeException('Erro ao excluir o projeto', 0, $e);
+        }
+    }
 }
