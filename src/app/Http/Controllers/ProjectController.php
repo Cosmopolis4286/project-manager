@@ -6,7 +6,6 @@ use App\Models\Project;
 use App\Services\Project\ProjectService;
 use App\Services\Project\ProjectMetricsService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -161,7 +160,6 @@ class ProjectController extends Controller
                 ->with('success', 'Projeto atualizado com sucesso!');
         }, 'Erro ao atualizar o projeto. Por favor, tente novamente.');
     }
-
     /**
      * Reordena projetos via drag & drop.
      *
@@ -179,21 +177,46 @@ class ProjectController extends Controller
                 'projects.*.position' => ['required', 'integer'],
             ]);
 
-            // Validar autorização para cada projeto
+            // Buscar projetos pelo IDs recebidos
             $projectIds = array_column($request->projects, 'id');
-            $projects = Project::whereIn('id', $projectIds)->get()->keyBy('id');
+            $projects = Project::whereIn('id', $projectIds)->get();
 
-            foreach ($request->projects as $projectData) {
-                $project = $projects->get($projectData['id']);
-                if (!$project) {
-                    abort(404, "Projeto ID {$projectData['id']} não encontrado.");
-                }
-                $this->authorize('update', $project);
+            if ($projects->count() !== count($projectIds)) {
+                abort(404, 'Um ou mais projetos não encontrados.');
             }
+
+            // Autorizar reorder via policy, passando coleção de projetos
+            $this->authorize('reorder', $projects);
 
             $this->service->reorderProjects($request->projects);
 
             return back()->with('success', 'Ordem dos projetos atualizada com sucesso!');
         }, 'Erro ao reordenar os projetos. Por favor, tente novamente.');
+    }
+
+    /**
+     * Remove um projeto.
+     *
+     * @param Project $project
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function destroy(Project $project)
+    {
+        return $this->handleService(function () use ($project) {
+
+            $this->authorize('delete', $project);
+
+            try {
+                $project->delete();
+
+                return redirect()
+                    ->route('projects.index')
+                    ->with('success', 'Projeto excluído com sucesso!');
+            } catch (\Exception $e) {
+                return redirect()
+                    ->route('projects.index')
+                    ->with('error', 'Erro ao excluir o projeto. Por favor, tente novamente.');
+            }
+        }, 'Erro ao excluir o projeto. Por favor, tente novamente.');
     }
 }
