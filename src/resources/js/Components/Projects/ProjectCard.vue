@@ -1,10 +1,11 @@
 <script setup>
 /**
- * Cartão de projeto com indicador de progresso e estado crítico.
+ * Cartão de projeto com indicador de progresso, estado crítico e opção de exclusão.
  */
 
 import { computed } from "vue";
 import { router } from "@inertiajs/vue3";
+import Swal from "sweetalert2";
 
 const props = defineProps({
     project: {
@@ -28,6 +29,33 @@ const progress = computed(() => {
 const goToShow = () => router.visit(route("projects.show", props.project.id));
 
 const goToEdit = () => router.visit(route("projects.edit", props.project.id));
+
+/**
+ * Confirmação e exclusão do projeto via SweetAlert2.
+ */
+const deleteProject = async () => {
+    const result = await Swal.fire({
+        title: "Confirma exclusão?",
+        text: "Esta ação não pode ser desfeita!",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d33",
+        cancelButtonColor: "#3085d6",
+        confirmButtonText: "Sim, excluir",
+        cancelButtonText: "Cancelar",
+    });
+
+    if (result.isConfirmed) {
+        router.delete(route("projects.destroy", props.project.id), {
+            onSuccess: () => {
+                Swal.fire("Excluído!", "Projeto excluído com sucesso.", "success");
+            },
+            onError: () => {
+                Swal.fire("Erro", "Não foi possível excluir o projeto.", "error");
+            },
+        });
+    }
+};
 </script>
 
 <template>
@@ -86,12 +114,21 @@ const goToEdit = () => router.visit(route("projects.edit", props.project.id));
                 {{ project.health }}
             </span>
 
-            <button
-                @click="goToEdit"
-                class="text-blue-600 hover:text-blue-800 text-sm font-medium"
-            >
-                Editar
-            </button>
+            <div class="flex space-x-3">
+                <button
+                    @click="goToEdit"
+                    class="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                >
+                    Editar
+                </button>
+
+                <button
+                    @click="deleteProject"
+                    class="text-red-600 hover:text-red-800 text-sm font-medium"
+                >
+                    Excluir
+                </button>
+            </div>
         </footer>
     </article>
 </template>
