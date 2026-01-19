@@ -14,10 +14,8 @@ use Illuminate\Support\Facades\Cache;
  * - Dados otimizados para UI
  * - Cacheados por usuário e filtros
  *
- * Centraliza:
- * - Agregações (contagem de tarefas)
- * - Cálculos derivados (progresso)
- * - Normalização de payload
+ * Adaptação para funcionar sem cache com tags,
+ * usando estratégia de versionamento para invalidação.
  */
 class ProjectMetricsService
 {
@@ -31,16 +29,21 @@ class ProjectMetricsService
     /**
      * Retorna projetos recentes do usuário com métricas de progresso.
      *
-     * Usado para dashboard, traz projetos limitados sem filtro textual ou de saúde.
+     * Usa cache com versão para evitar usar tags.
      *
      * @param int $userId ID do usuário autenticado
      * @param int $limit Limite de projetos retornados
-     * @return Collection<int, array<string, mixed>> Coleção de projetos normalizados para UI
+     * @return Collection<int, array<string, mixed>> Projetos normalizados para UI
      */
     public function getRecentProjects(int $userId, int $limit = 10): Collection
     {
-        $cacheKey = $this->cacheKey($userId, null, $limit);
+        // Obtém versão atual do cache para o usuário
+        $version = $this->getUserCacheVersion($userId);
 
+        // Gera chave de cache incluindo a versão para garantir invalidação
+        $cacheKey = $this->cacheKey($userId, null, $limit, $version);
+
+        // Retorna do cache ou executa consulta
         return Cache::remember($cacheKey, $this->ttl, function () use ($userId, $limit) {
             return Project::query()
                 ->where('user_id', $userId)
@@ -59,18 +62,20 @@ class ProjectMetricsService
      * Retorna projetos do usuário com filtros opcionais e métricas de progresso.
      *
      * Suporta busca textual por nome/descrição e filtro por status de saúde.
+     * Usa cache versionado para invalidação sem tags.
      *
      * @param int $userId ID do usuário autenticado
-     * @param string|null $search Termo de busca textual (nome ou descrição)
-     * @param string|null $healthStatus Filtro por status de saúde (ex: 'Em Alerta', 'Saudável', 'all')
-     * @return Collection<int, array<string, mixed>> Coleção de projetos normalizados para UI
+     * @param string|null $search Termo de busca (nome ou descrição)
+     * @param string|null $healthStatus Filtro por status de saúde ('Em Alerta', 'Saudável', 'all')
+     * @return Collection<int, array<string, mixed>> Projetos normalizados para UI
      */
     public function getProjectsWithFilters(
         int $userId,
         ?string $search = null,
         ?string $healthStatus = null
     ): Collection {
-        $cacheKey = $this->cacheKey($userId, $search, null);
+        $version = $this->getUserCacheVersion($userId);
+        $cacheKey = $this->cacheKey($userId, $search, null, $version);
 
         $projects = Cache::remember($cacheKey, $this->ttl, function () use ($userId, $search) {
             $query = Project::query()
@@ -91,21 +96,22 @@ class ProjectMetricsService
             return $query->get();
         });
 
+        // Filtra projetos por status de saúde, se aplicável
         if ($healthStatus && $healthStatus !== 'all') {
             $projects = $projects->filter(fn(Project $project) => $project->health_status === $healthStatus);
         }
 
+        // Normaliza os dados para UI
         return $projects->map(fn(Project $project) => $this->mapProject($project))->values();
     }
 
     /**
      * Normaliza um projeto com métricas calculadas.
      *
-     * Centraliza a transformação para garantir consistência
-     * entre todas as telas da aplicação.
+     * Centraliza a transformação para garantir consistência.
      *
      * @param Project $project Projeto com contadores carregados
-     * @return array<string, mixed> Estrutura pronta para a UI
+     * @return array<string, mixed> Estrutura pronta para UI
      */
     protected function mapProject(Project $project): array
     {
@@ -124,58 +130,69 @@ class ProjectMetricsService
     }
 
     /**
-     * Gera a chave de cache para o read model de projetos.
-     *
-     * A chave considera:
-     * - Usuário
-     * - Termo de busca
-     * - Limite
-     *
-     * Evita colisões e mantém o cache determinístico.
+     * Gera a chave de cache para projetos,
+     * incluindo versão para controle de invalidação.
      *
      * @param int $userId
-     * @param string|null $search
-     * @param int|null $limit
-     * @return string
+     * @param string|null $search Termo de busca
+     * @param int|null $limit Limite de resultados
+     * @param string $version Versão atual do cache do usuário
+     * @return string Chave única para cache
      */
     protected function cacheKey(
         int $userId,
         ?string $search,
-        ?int $limit
+        ?int $limit,
+        string $version
     ): string {
         return sprintf(
-            'projects.metrics:%d:search:%s:limit:%s',
+            'projects.metrics:%d:search:%s:limit:%s:version:%s',
             $userId,
             $search ? md5($search) : 'none',
-            $limit ?? 'all'
+            $limit ?? 'all',
+            $version
         );
     }
 
     /**
-     * Invalida todos os caches de métricas de um usuário.
+     * Obtém a versão atual do cache do usuário.
+     * Se não existir, inicializa com timestamp atual.
      *
-     * Estratégia:
-     * - Namespace por usuário
-     * - Compatível com múltiplos filtros
+     * @param int $userId
+     * @return string Versão do cache (timestamp)
+     */
+    protected function getUserCacheVersion(int $userId): string
+    {
+        $versionKey = $this->cacheVersionKey($userId);
+
+        // Usa rememberForever para persistir a versão até invalidação
+        return Cache::rememberForever($versionKey, fn() => (string) time());
+    }
+
+    /**
+     * Invalida o cache do usuário atualizando a versão.
      *
-     * Deve ser chamado por observers (projects, tasks).
+     * O timestamp novo faz as chaves antigas expirarem.
      *
      * @param int $userId
      * @return void
      */
     public function clearUserCache(int $userId): void
     {
-        Cache::tags($this->userCacheTag($userId))->flush();
+        $versionKey = $this->cacheVersionKey($userId);
+
+        // Atualiza versão com timestamp atual e expira em 30 dias para limpeza
+        Cache::put($versionKey, (string) time(), now()->addDays(30));
     }
 
     /**
-     * Retorna a tag de cache do usuário.
+     * Gera a chave para armazenar a versão do cache de um usuário.
      *
      * @param int $userId
-     * @return array<int, string>
+     * @return string Chave da versão do cache
      */
-    protected function userCacheTag(int $userId): array
+    protected function cacheVersionKey(int $userId): string
     {
-        return ["projects.metrics.user.{$userId}"];
+        return "projects.metrics.version.user.{$userId}";
     }
 }
