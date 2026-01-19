@@ -27,14 +27,14 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-Route::middleware(['auth'])->group(function () {
-    Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
-    Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
-    Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
-    Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
-    Route::get('/projects/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
-    Route::put('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
-    Route::post('/projects/reorder', [ProjectController::class, 'reorder'])->name('projects.reorder');
+Route::middleware(['auth'])->prefix('projects')->group(function () {
+    Route::get('', [ProjectController::class, 'index'])->name('projects.index');
+    Route::get('create', [ProjectController::class, 'create'])->name('projects.create');
+    Route::post('', [ProjectController::class, 'store'])->name('projects.store');
+    Route::get('{project}', [ProjectController::class, 'show'])->name('projects.show');
+    Route::get('{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
+    Route::put('{project}', [ProjectController::class, 'update'])->name('projects.update');
+    Route::post('reorder', [ProjectController::class, 'reorder'])->name('projects.reorder');
 });
 
 Route::middleware(['auth'])->prefix('projects/{project}')->group(function () {
@@ -43,6 +43,7 @@ Route::middleware(['auth'])->prefix('projects/{project}')->group(function () {
 });
 
 Route::middleware(['auth'])->prefix('tasks')->group(function () {
+    Route::get('', [TaskController::class, 'index'])->name('tasks.index');
     Route::get('{task}/edit', [TaskController::class, 'edit'])->name('tasks.edit');
     Route::put('{task}', [TaskController::class, 'update'])->name('tasks.update');
 });
