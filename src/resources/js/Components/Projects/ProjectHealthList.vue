@@ -26,6 +26,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    title: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 /**
@@ -42,7 +46,7 @@ const goToProject = (id) => {
 </script>
 
 <template>
-    <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+    <h3 v-if="title" class="text-lg font-semibold mb-4 flex items-center gap-2">
         📊 Saúde dos Projetos
     </h3>
 
@@ -111,8 +115,8 @@ const goToProject = (id) => {
                         project.progress < 40
                             ? 'bg-red-500'
                             : project.progress < 70
-                            ? 'bg-yellow-500'
-                            : 'bg-green-600'
+                              ? 'bg-yellow-500'
+                              : 'bg-green-600'
                     "
                     :style="{ width: project.progress + '%' }"
                 />
